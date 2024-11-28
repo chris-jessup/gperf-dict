@@ -1,5 +1,4 @@
 import subprocess as sp
-import sys
 from cffi import FFI # To be able to link into the library
 
 #
@@ -48,7 +47,7 @@ class GPerfDict(object):
         # it seems to be when 
         temp_file = NamedTemporaryFile(suffix=".gperf")
 
-        with open(temp_file.name, 'w') as fp:
+        with open(temp_file.name, 'wb') as fp:
             fp.write(file)
 
         output = sp.run(['gperf', 
@@ -69,11 +68,11 @@ class GPerfDict(object):
     def _make_gperf_file(self, keyvals: dict[str, int]) -> str:
 
         lines = [
-            "struct KeyVal { char *name; int val; };",
-            "%%",
-        ] + [key + ", " + str(val) for key,val in keyvals.items()]
+            b"struct KeyVal { char *name; int val; };",
+            b"%%",
+        ] + [key + b", " + str(val).encode('utf-8') for key,val in keyvals.items()]
 
-        template = "\n".join(lines)
+        template = b"\n".join(lines)
 
         return template
 
@@ -104,13 +103,18 @@ class GPerfDict(object):
 
     def __contains__(self, key):
         length = len(key)
-        if self.lib.in_word_set(key.encode('utf-8'), length):
-            return True
-        return False
+        if type(key) == bytes:
+            kv = self.lib.in_word_set(key, length)
+        else:
+            kv = self.lib.in_word_set(key.encode('utf-8'), length)
+        return kv is not None
 
     def __getitem__(self, key):
         length = len(key)
-        kv = self.lib.in_word_set(key.encode('utf-8'), length)
+        if type(key) == bytes:
+            kv = self.lib.in_word_set(key, length)
+        else:
+            kv = self.lib.in_word_set(key.encode('utf-8'), length)
 
         if not kv:
             raise KeyError(key)
